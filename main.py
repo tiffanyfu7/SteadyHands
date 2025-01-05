@@ -17,8 +17,9 @@ drawing = False  # Track whether to draw
 canvas = None  # Canvas to store drawings
 prev_point = None
 
-PINCH_TRESH = 75
-DRAW_COLOR = (200, 200, 200)
+PINCH_TRESH = 50
+DRAW_COLOR = (255, 255, 255)
+DRAW_WIDTH = 10
 
 # Pinch Detection and Drawing
 def pinch(Tx, Ty, Px, Py):
@@ -65,23 +66,42 @@ while True:
                     if center and drawing:
                         # Draw on the canvas
                         if prev_point:
-                            cv2.line(canvas, prev_point, center, DRAW_COLOR, 5)
-                        cv2.circle(canvas, center, 5, DRAW_COLOR, -1)
+                            cv2.line(canvas, prev_point, center, DRAW_COLOR, DRAW_WIDTH * 2)
+                        cv2.circle(canvas, center, DRAW_WIDTH, DRAW_COLOR, -1)
                         prev_point = center
+                if id == 12:
+                    center = pinch(Tx, Ty, cx, cy)
+                    if center:
+                        canvas = np.zeros((h, w, 3), dtype=np.uint8)
     
-    # Combine the canvas with the frame
-    combined = cv2.addWeighted(frame, 0.8, canvas, 0.2, 0)
-    
+    # Combine the canvas with the frame efficiently
+    gray_canvas = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)  # Convert canvas to grayscale
+    _, mask = cv2.threshold(gray_canvas, 1, 255, cv2.THRESH_BINARY)  # Create a binary mask
+    # Invert the mask
+    mask_inv = cv2.bitwise_not(mask)
+    # Isolate the video background where there's no drawing
+    background = cv2.bitwise_and(frame, frame, mask=mask_inv)
+    # Isolate the drawing from the canvas
+    foreground = cv2.bitwise_and(canvas, canvas, mask=mask)
+    # Combine the background and foreground
+    combined = cv2.add(background, foreground)
+
     # Display the combined frame
     cv2.imshow("Pinch Drawing", combined)
     
-    # Break on 'q' key press
+    # Key Operations
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
         break
     elif key == ord('c'):
-        # Clear the canvas when 'c' is pressed
         canvas = np.zeros((h, w, 3), dtype=np.uint8)
+    elif key == ord('+'):
+        if DRAW_WIDTH < 40:
+            DRAW_WIDTH = DRAW_WIDTH + 5
+    elif key == ord('-'):
+        if DRAW_WIDTH > 5:
+            DRAW_WIDTH = DRAW_WIDTH - 5
+    
 
 # Release resources
 vid.release()
